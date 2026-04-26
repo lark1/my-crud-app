@@ -2,11 +2,18 @@
 
 import { Todo } from "@/types/todo";
 import React, { useState, useEffect } from "react";
+import toast, { Toaster } from "react-hot-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function TodoPage() {
   const fetch_url = process.env.NEXT_PUBLIC_API_URL;
   const [todos, setTodos ] = useState<Todo[]>([]);
   const [newTodoTitle, setNewTodoTitle] = useState("");
+  const [isSubmitting, setIsSubmitting ] = useState(false);
+
+  const [ editingId, setEditingId ] = useState<number | null>(null);
+  const [ editTitle, setEditTitle ] = useState("");
 
   // 環境変数が設定されていない場合
   if (!fetch_url) {
@@ -28,10 +35,39 @@ export default function TodoPage() {
     fetchTodos();
   },[]);
 
+  // 編集開始処理
+  const startEdit = (todo: Todo) => {
+    setEditingId(todo.id);
+    setEditTitle(todo.title);
+  };
+
+  // 更新処理
+  const updateTodo = async (id: number, data: { title?: string; is_completed?: boolean }) => {
+    try { 
+      const response = await fetch(`${fetch_url}/todos/${id}`,{
+        method: "PUT",
+        headers: {
+          "Content-Type":"application/json",
+        },
+        body: JSON.stringify(data),
+      });
+    
+      setEditingId(null);
+      fetchTodos();
+    } catch (error) {
+      console.error("更新エラー",error);
+    }
+  }
+
   // createTodo
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTodoTitle.trim()) return;
+    if (!newTodoTitle.trim()) {
+      toast.error("タスクを入力してください");
+      return;
+    };
+    
+    setIsSubmitting(true);
 
     try {
       const response = await fetch(`${fetch_url}/todos`,{
@@ -45,24 +81,17 @@ export default function TodoPage() {
       if (response.ok) {
         setNewTodoTitle("");
         fetchTodos();
+        toast.success("タスクを追加しました");
       } else {
-        const errorDetail = await response.json();
-        console.error("サーバーエラー詳細：",errorDetail);
+        toast.error("追加に失敗しました")
       }
-      
-  
     } catch(error) {
-      console.error("ネットワーク接続エラー",error);
+      toast.error("通信エラーが発生しました")
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
-  // update
-  const toggleTodo = async (id: number) => {
-    await fetch(`${fetch_url}/todos/${id}`,{
-      method: "PUT"
-    });
-    fetchTodos();
-  };
 //delete
   const deleteTodo = async (id: number) => {
     await fetch(`${fetch_url}/todos/${id}`,{
@@ -72,6 +101,7 @@ export default function TodoPage() {
   }
   return (
     <main className="min-h-screen bg-slate-50 py-12 px-4 text-slate-900">
+    <Toaster position="bottom-right"/>
       <div className="max-w-md mx-auto bg-white shadow-xl rounded-2xl p-8">
         <h1 className="text-3xl font-extrabold mb-8 text-center text-blue-600">
           Todo App
@@ -79,16 +109,18 @@ export default function TodoPage() {
 
           {/* 入力エリア */}
         <form onSubmit={addTodo} className="flex gap-2 mb-8">
-          <input
+          <Input
           type="text"
           value={newTodoTitle}
           onChange={(e) => setNewTodoTitle(e.target.value)}
           placeholder="タスクを入力"
-          className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-          <button
+           />
+          <Button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition"
-          >追加</button>
+          disabled={isSubmitting}
+          className={"bg-blue-600 hover:bg-blue-700 text-white"}>
+            {isSubmitting ? "追加中…" : "追加"}
+          </Button>
         </form>
 
         {/* リスト表示エリア */}
@@ -96,34 +128,47 @@ export default function TodoPage() {
           {todos.map((todo) => (
             <li
             key={todo.id}
-            className="p-4 bg-slate-50 rounded-lg border border-slate-100 shadow-sm"
+            className="flex justify-between items-center p-4 bg-slate-50 rounded-lg border border-slate-100 shadow-sm"
             >
               <div className="flex items-center gap-3">
                 {/* チェックボックス */}
-                <input
+                <Input
                 type="checkbox"
                 checked={todo.is_completed}
-                onChange={() => toggleTodo(todo.id)}
+                onChange={() => updateTodo(todo.id,{ title: todo.title,is_completed: !todo.is_completed})}
                 className="w-5 h-5 cursor-pointer accent-blue-600 rounded" 
                 />
-                {/* 完了時に打消し線を引くスタイリング */}
-                <span className={`text-lg transition-all ${
-                  todo.is_completed ? "line-through text-slate-400" :"text-slate-700"
-                }`}>
+
+                {editingId === todo.id ? (
+                  <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onBlur={() => updateTodo(todo.id, {title: editTitle, is_completed: todo.is_completed})}
+                  onKeyDown={(e) => e.key === 'Enter' && updateTodo(todo.id, {title: editTitle,is_completed: todo.is_completed})}
+                  autoFocus
+                  
+                  />
+                ) : (
+               
+                <span onClick={() => startEdit(todo)}
+                className="cursor-pointer text-lg">
                   {todo.title}
                 </span>
+                )}
               </div>
               
               {/* 削除ボタン */}
-              <button
+              <Button
               onClick={() => deleteTodo(todo.id)}
-              className="text-slate-300 hover:text-red-500 transition-colors p-1"
+              variant="ghost"
+              size="icon"
+              
               title="削除"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

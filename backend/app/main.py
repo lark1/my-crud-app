@@ -38,8 +38,8 @@ def create_todo(todo: schemas.TodoCreate,db:Session = Depends(get_db)):
     return crud.create_todo(todo=todo, db=db)
 
 @app.put("/todos/{todo_id}",response_model=schemas.Todo)
-def update_todo(todo_id: int, db: Session = Depends(get_db)):
-    return crud.update_todo(db=db, todo_id=todo_id)
+def update_todo(todo_id: int,todo_update: schemas.TodoUpdate, db: Session = Depends(get_db)):
+    return crud.update_todo(db=db, todo_id=todo_id,todo_update=todo_update)
 
 @app.delete("/todos/{todo_id}")
 def delete_todo(todo_id:int, db: Session = Depends(get_db)):

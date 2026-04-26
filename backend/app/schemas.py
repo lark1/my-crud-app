@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 #共通の属性
 class TodoBase(BaseModel):
@@ -8,9 +8,12 @@ class TodoBase(BaseModel):
 #作成時に必要なデータ
 class TodoCreate(TodoBase):
     pass
+
+class TodoUpdate(BaseModel):
+    title: str
+    is_completed: bool
+    
 #読み取り時に返却されるデータ（IDが含まれる）
 class Todo(TodoBase):
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
